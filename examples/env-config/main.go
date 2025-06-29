@@ -100,7 +100,11 @@ func main() {
 		emit.Error.StructuredFields("Failed to create primary client",
 			emit.ZString("error", err.Error()))
 	} else {
-		defer primaryClient.Close()
+		defer func() {
+			if err := primaryClient.Close(); err != nil {
+				emit.Error.StructuredFields("Failed to close primary client", emit.ZString("error", err.Error()))
+			}
+		}()
 		primaryName := primaryClient.Name()
 		emit.Info.StructuredFields("Primary client created",
 			emit.ZString("connection_name", primaryName))
@@ -118,7 +122,11 @@ func main() {
 			emit.ZString("error", err.Error()))
 		emit.Warn.Msg("Logging client example failed (expected if LOGS_* vars not set)")
 	} else {
-		defer loggingClient.Close()
+		defer func() {
+			if err := loggingClient.Close(); err != nil {
+				emit.Error.StructuredFields("Failed to close logging client", emit.ZString("error", err.Error()))
+			}
+		}()
 		loggingName := loggingClient.Name()
 		emit.Info.StructuredFields("Logging client created",
 			emit.ZString("connection_name", loggingName))

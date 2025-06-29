@@ -136,4 +136,4 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
         version: latest
-        args: --out-format=colored-line-number --skip-dirs=examples
+        args: --timeout=5m
