@@ -14,7 +14,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating client: %s", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Error closing client: %s", err)
+		}
+	}()
 
 	ctx := context.Background()
 

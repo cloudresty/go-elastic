@@ -51,7 +51,7 @@ func (si *SearchIterator) Next(ctx context.Context) bool {
 	// Check if we got any hits in the new batch
 	if len(si.currentHits) == 0 {
 		si.done = true
-		si.clearScroll(ctx) // Clean up scroll context
+		_ = si.clearScroll(ctx) // Cleanup scroll context, ignore error since iteration is complete
 		return false
 	}
 
