@@ -1,0 +1,139 @@
+name: CI
+
+# This CI workflow runs all tests with Elasticsearch.
+# The examples/ folder is excluded from all test runs.
+# Elasticsearch runs without authentication for testing.
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+        env:
+          discovery.type: single-node
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+          xpack.security.enabled: false
+          xpack.security.enrollment.enabled: false
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    strategy:
+      matrix:
+        go-version: [1.23, 1.24]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Format check
+      run: |
+        go fmt ./...
+        git diff --exit-code
+
+    - name: Vet
+      run: go vet $(go list ./... | grep -v '/examples/')
+
+    - name: Wait for Elasticsearch
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:9200/_cluster/health; do sleep 2; done'
+
+    - name: Verify Elasticsearch is ready
+      run: |
+        echo "Verifying Elasticsearch is accessible..."
+        curl -f http://localhost:9200/_cluster/health && echo "Elasticsearch is ready" || exit 1
+        echo "Elasticsearch cluster info:"
+        curl -s http://localhost:9200/ | jq .
+
+    - name: Run unit tests
+      env:
+        ELASTICSEARCH_HOSTS: localhost:9200
+        ELASTICSEARCH_TLS_ENABLED: false
+      run: go test -v -race -short $(go list ./... | grep -v '/examples/')
+
+    - name: Run integration tests
+      env:
+        ELASTICSEARCH_HOSTS: localhost:9200
+        ELASTICSEARCH_TLS_ENABLED: false
+        TEST_ELASTICSEARCH_HOSTS: localhost:9200
+      run: |
+        # Run integration tests if they exist
+        if [ -f "Makefile" ] && grep -q "test-integration" Makefile; then
+          make test-integration
+        else
+          echo "No integration tests found, skipping..."
+        fi
+
+    - name: Check test results
+      if: always()
+      run: |
+        # Check test results if make target exists
+        if [ -f "Makefile" ] && grep -q "test-status" Makefile; then
+          make test-status
+        else
+          echo "No test-status target found, skipping..."
+        fi
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-go-${{ matrix.go-version }}
+        path: test-results/
+
+    - name: Run tests with coverage
+      env:
+        ELASTICSEARCH_HOSTS: localhost:9200
+        ELASTICSEARCH_TLS_ENABLED: false
+      run: go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v '/examples/')
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.24
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --out-format=colored-line-number --skip-dirs=examples
