@@ -37,10 +37,11 @@ A modern, production-ready Go package for Elasticsearch operations with environm
 
 - **Best-in-Class Search Experience**: Three-pillar approach with fluent query builder, composable search API, and rich typed results
 - **Environment-First**: Configure via environment variables for cloud-native deployments
-- **ULID IDs**: High-performance, database-optimized, lexicographically sortable document identifiers
-- **Auto-Reconnection**: Intelligent retry with configurable backoff
+- **Multiple ID Strategies**: Elasticsearch native (default), ULID, and custom ID generation
+- **Auto-Reconnection**: Intelligent retry with configurable exponential backoff
 - **Production-Ready**: Graceful shutdown, timeouts, health checks, bulk operations
-- **High Performance**: Zero-allocation logging, optimized for throughput
+- **Resource-Oriented API**: Clean, idiomatic Go patterns with DocumentsService, IndicesService, ClusterService
+- **High Performance**: Optimized connection pooling, compression, and efficient operations
 - **Fully Tested**: Comprehensive test coverage with CI/CD pipeline
 
 🔝 [back to top](#go-elastic)
@@ -79,8 +80,8 @@ type User struct {
 }
 
 func main() {
-    // Client - uses ELASTICSEARCH_* environment variables
-    client, err := elastic.NewClient(elastic.FromEnv())
+    // Client - uses ELASTICSEARCH_* environment variables automatically
+    client, err := elastic.NewClient()
     if err != nil {
         panic(err)
     }
@@ -88,17 +89,20 @@ func main() {
 
     ctx := context.Background()
 
-    // Index a document with auto-generated ULID ID
+    // Index a document with auto-generated ID (Elasticsearch native by default)
     user := User{
         Name:  "John Doe",
         Email: "john@example.com",
         Age:   30,
     }
     result, err := client.Documents().Create(ctx, "users", user)
+    if err != nil {
+        panic(err)
+    }
 
-    // ✨ BEST-IN-CLASS SEARCH EXPERIENCE ✨
+    // BEST-IN-CLASS SEARCH EXPERIENCE
 
-    // 1️⃣ Fluent Query Builder - Type-safe, readable queries
+    // 1. Fluent Query Builder - Type-safe, readable queries
     searchQuery := query.New().
         Must(
             query.Match("name", "John"),
@@ -106,7 +110,7 @@ func main() {
         ).
         Filter(query.Term("active", true))
 
-    // 2️⃣ Composable Search API - Rich options, clean syntax
+    // 2. Composable Search API - Rich options, clean syntax
     typedDocs := elastic.For[User](client.Documents())
     results, err := typedDocs.Search(
         ctx,
@@ -117,7 +121,7 @@ func main() {
         elastic.WithAggregation("avg_age", elastic.NewAvgAggregation("age")),
     )
 
-    // 3️⃣ Rich, Typed Results - Effortless data extraction
+    // 3. Rich, Typed Results - Effortless data extraction
     if results.HasHits() {
         users := results.Documents()     // []User - typed slice
         firstUser, _ := results.First()  // User - typed document
@@ -143,9 +147,10 @@ Set environment variables for your deployment:
 
 ```bash
 export ELASTICSEARCH_HOSTS=localhost:9200
-export ELASTICSEARCH_PORT=9200
-export ELASTICSEARCH_INDEX_PREFIX=myapp_
 export ELASTICSEARCH_CONNECTION_NAME=my-service
+export ELASTICSEARCH_TLS_ENABLED=false
+export ELASTICSEARCH_CONNECT_TIMEOUT=10s
+export ELASTICSEARCH_REQUEST_TIMEOUT=30s
 ```
 
 🔝 [back to top](#go-elastic)
@@ -157,9 +162,11 @@ export ELASTICSEARCH_CONNECTION_NAME=my-service
 | Document | Description |
 |----------|-------------|
 | [API Reference](docs/api-reference.md) | Complete function reference and usage patterns |
+| [Getting Started](docs/getting-started.md) | Step-by-step guide to get up and running quickly |
 | [Environment Configuration](docs/environment-configuration.md) | Environment variables and deployment configurations |
+| [Environment Variables](docs/environment-variables.md) | Complete reference of all environment variables |
 | [Production Features](docs/production-features.md) | Auto-reconnection, graceful shutdown, health checks, bulk operations |
-| [ULID IDs](docs/ulid-ids.md) | High-performance, database-optimized document identifiers |
+| [ID Generation](docs/id-generation.md) | Document ID generation strategies and performance considerations |
 | [Examples](docs/examples.md) | Comprehensive examples and usage patterns |
 
 🔝 [back to top](#go-elastic)
@@ -182,9 +189,9 @@ Perfect for modern cloud deployments with Docker, Kubernetes, and CI/CD pipeline
 
 &nbsp;
 
-### ULID IDs
+### Smart ID Generation
 
-Get high-performance document ID generation with better database performance compared to UUIDs. Natural time-ordering and collision resistance.
+Multiple ID generation strategies: Elasticsearch native (default, recommended), ULID for sortable IDs, and custom IDs for specific use cases. Optimized for performance and shard distribution.
 
 🔝 [back to top](#go-elastic)
 
@@ -200,7 +207,7 @@ Built-in support for high availability, graceful shutdown, automatic reconnectio
 
 ### Performance Optimized
 
-Zero-allocation logging, efficient ULID generation, and optimized for high-throughput scenarios.
+Optimized connection pooling, HTTP compression, configurable retry logic, and efficient ID generation for high-throughput scenarios.
 
 🔝 [back to top](#go-elastic)
 
@@ -210,12 +217,17 @@ Zero-allocation logging, efficient ULID generation, and optimized for high-throu
 
 ```go
 // Use custom environment prefix for multi-service deployments
-client, err := elastic.NewClientWithPrefix("SEARCH_")
+client, err := elastic.NewClient(elastic.FromEnvWithPrefix("SEARCH_"))
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
 
 // Health checks and monitoring
-if client.IsConnected() {
-    health := client.HealthCheck()
-    log.Printf("Elasticsearch health: %+v", health)
+if err := client.Ping(context.Background()); err != nil {
+    log.Printf("Elasticsearch connection failed: %v", err)
+} else {
+    log.Println("Elasticsearch connection is healthy")
 }
 
 // Graceful shutdown with signal handling
@@ -231,60 +243,16 @@ shutdownManager.Wait() // Blocks until SIGINT/SIGTERM
 
 &nbsp;
 
-## Requirements
-
-- Go 1.24+ (recommended)
-- Elasticsearch 8.0+ (recommended)
-
-🔝 [back to top](#go-elastic)
-
-&nbsp;
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for your changes
-4. Ensure all tests pass
-5. Submit a pull request
-
-🔝 [back to top](#go-elastic)
-
-&nbsp;
-
-## Security
-
-If you discover a security vulnerability, please report it via email to [security@cloudresty.com](mailto:security@cloudresty.com).
-
-🔝 [back to top](#go-elastic)
-
-&nbsp;
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
-
-🔝 [back to top](#go-elastic)
-
-&nbsp;
-
----
-
-&nbsp;
-
-An open source project brought to you by the [Cloudresty](https://cloudresty.com) team.
-
-[Website](https://cloudresty.com) &nbsp;|&nbsp; [LinkedIn](https://www.linkedin.com/company/cloudresty) &nbsp;|&nbsp; [BlueSky](https://bsky.app/profile/cloudresty.com) &nbsp;|&nbsp; [GitHub](https://github.com/cloudresty)
-
-&nbsp;
-
 ## Search Experience Philosophy
 
 go-elastic delivers a **best-in-class search experience** built on three foundational pillars:
 
-#### 🔧 **Pillar 1: Fluent Query Builder**
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+### Pillar 1: Fluent Query Builder
+
 Build complex queries with a type-safe, chainable API that reads like natural language:
 
 ```go
@@ -311,7 +279,12 @@ complexQuery := query.New().
     MinimumShouldMatch(1)
 ```
 
-#### 🔍 **Pillar 2: Composable Search API**
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+### Pillar 2: Composable Search API
+
 A single, powerful search method with functional options for ultimate flexibility:
 
 ```go
@@ -327,7 +300,12 @@ results, err := typedDocs.Search(
 )
 ```
 
-#### 🎯 **Pillar 3: Rich, Typed Results**
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+### Pillar 3: Rich, Typed Results
+
 Smart, structured responses with built-in helpers for effortless data extraction:
 
 ```go
@@ -359,6 +337,45 @@ results.Each(func(hit elastic.TypedHit[Product]) {
 
 **The Result**: Search operations that are not just less verbose, but genuinely enjoyable to write and maintain.
 
+&nbsp;
+
+🔝 [back to top](#go-elastic)
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for your changes
+4. Ensure all tests pass
+5. Submit a pull request
+
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+## Security
+
+If you discover a security vulnerability, please report it via email to [security@cloudresty.com](mailto:security@cloudresty.com).
+
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+## Requirements
+
+- Go 1.24+ (recommended)
+- Elasticsearch 8.0+ (recommended)
+
+🔝 [back to top](#go-elastic)
+
+&nbsp;
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
+
 🔝 [back to top](#go-elastic)
 
 &nbsp;
@@ -367,8 +384,8 @@ results.Each(func(hit elastic.TypedHit[Product]) {
 
 &nbsp;
 
-An open source project brought to you by the [Cloudresty](https://cloudresty.com/) team.
+An open source project brought to you by the [Cloudresty](https://cloudresty.com) team.
 
-[Website](https://cloudresty.com/) &nbsp;|&nbsp; [LinkedIn](https://www.linkedin.com/company/cloudresty) &nbsp;|&nbsp; [BlueSky](https://bsky.app/profile/cloudresty.com) &nbsp;|&nbsp; [GitHub](https://github.com/cloudresty)
+[Website](https://cloudresty.com) &nbsp;|&nbsp; [LinkedIn](https://www.linkedin.com/company/cloudresty) &nbsp;|&nbsp; [BlueSky](https://bsky.app/profile/cloudresty.com) &nbsp;|&nbsp; [GitHub](https://github.com/cloudresty)
 
 &nbsp;
