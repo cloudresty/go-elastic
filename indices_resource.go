@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -56,29 +55,22 @@ func (ir *IndexResource) Create(ctx context.Context, mapping map[string]any) err
 
 	res, err := req.Do(ctx, ir.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to create index",
-			emit.ZString("index", ir.name),
-			emit.ZString("error", err.Error()))
+		ir.client.config.Logger.Error("Failed to create index - index: %s, error: %s", ir.name, err.Error())
 		return fmt.Errorf("failed to create index: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ir.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to create index",
-			emit.ZString("index", ir.name),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		ir.client.config.Logger.Error("Failed to create index - index: %s, status: %s, response: %s", ir.name, res.Status(), string(bodyBytes))
 		return fmt.Errorf("failed to create index '%s': %s - %s", ir.name, res.Status(), string(bodyBytes))
 	}
 
-	emit.Info.StructuredFields("Index created successfully",
-		emit.ZString("index", ir.name))
+	ir.client.config.Logger.Info("Index created successfully - index: %s", ir.name)
 
 	return nil
 }
@@ -97,29 +89,22 @@ func (ir *IndexResource) Delete(ctx context.Context) error {
 
 	res, err := req.Do(ctx, ir.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to delete index",
-			emit.ZString("index", ir.name),
-			emit.ZString("error", err.Error()))
+		ir.client.config.Logger.Error("Failed to delete index - index: %s, error: %s", ir.name, err.Error())
 		return fmt.Errorf("failed to delete index: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ir.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to delete index",
-			emit.ZString("index", ir.name),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		ir.client.config.Logger.Error("Failed to delete index - index: %s, status: %s, response: %s", ir.name, res.Status(), string(bodyBytes))
 		return fmt.Errorf("failed to delete index '%s': %s - %s", ir.name, res.Status(), string(bodyBytes))
 	}
 
-	emit.Info.StructuredFields("Index deleted successfully",
-		emit.ZString("index", ir.name))
+	ir.client.config.Logger.Info("Index deleted successfully - index: %s", ir.name)
 
 	return nil
 }
@@ -142,8 +127,7 @@ func (ir *IndexResource) Exists(ctx context.Context) (bool, error) {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ir.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 

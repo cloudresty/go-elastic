@@ -1,12 +1,13 @@
-module search-experience-demo
+module github.com/cloudresty/go-elastic/examples/production-features
 
 go 1.24.1
 
-toolchain go1.24.4
+toolchain go1.24.5
 
-replace github.com/cloudresty/go-elastic => ../../
-
-require github.com/cloudresty/go-elastic v0.0.0-00010101000000-000000000000
+require (
+	github.com/cloudresty/emit v1.2.5
+	github.com/cloudresty/go-elastic v0.0.0-00010101000000-000000000000
+)
 
 require (
 	github.com/cloudresty/go-env v1.0.1 // indirect
@@ -20,3 +21,5 @@ require (
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 )
+
+replace github.com/cloudresty/go-elastic => ../..

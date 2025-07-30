@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9"
 )
 
@@ -92,9 +91,8 @@ type Config struct {
 	// ID Generation settings
 	IDMode IDMode `env:"ELASTICSEARCH_ID_MODE,default=elastic"`
 
-	// Logging
-	LogLevel  string `env:"ELASTICSEARCH_LOG_LEVEL,default=info"`
-	LogFormat string `env:"ELASTICSEARCH_LOG_FORMAT,default=json"`
+	// Logger for internal logging (not configurable via environment)
+	Logger Logger
 }
 
 // BuildConnectionAddresses constructs Elasticsearch connection addresses from configuration
@@ -255,6 +253,18 @@ func WithConnectionName(name string) ClientOption {
 	}
 }
 
+// WithLogger sets a custom logger for internal logging operations.
+// If not provided, a NopLogger (silent) will be used by default.
+// Example: client, err := elastic.NewClient(elastic.WithLogger(myLogger))
+func WithLogger(logger Logger) ClientOption {
+	return func(opts *clientOptions) {
+		if opts.config == nil {
+			opts.config = &Config{}
+		}
+		opts.config.Logger = logger
+	}
+}
+
 // FromEnv loads configuration from environment variables using the default
 // "ELASTICSEARCH_" prefix. This is a functional option for NewClient.
 // Example: client, err := elastic.NewClient(elastic.FromEnv())
@@ -315,6 +325,11 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
+	// Set default logger if none provided
+	if config.Logger == nil {
+		config.Logger = &NopLogger{}
+	}
+
 	// Get the first host for logging
 	firstHost := "localhost"
 	logPort := 9200
@@ -332,11 +347,11 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		}
 	}
 
-	emit.Info.StructuredFields("Creating new Elasticsearch client",
-		emit.ZString("host", firstHost),
-		emit.ZInt("port", logPort),
-		emit.ZString("app_name", config.AppName),
-		emit.ZBool("tls_enabled", config.TLSEnabled))
+	config.Logger.Info("Creating new Elasticsearch client",
+		"host", firstHost,
+		"port", logPort,
+		"app_name", config.AppName,
+		"tls_enabled", config.TLSEnabled)
 
 	client := &Client{
 		config:       config,
@@ -368,10 +383,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		}
 	}
 
-	emit.Info.StructuredFields("Elasticsearch client initialized successfully",
-		emit.ZString("host", logHost2),
-		emit.ZInt("port", logPort2),
-		emit.ZString("app_name", config.AppName))
+	config.Logger.Info("Elasticsearch client initialized successfully - host: %s, port: %d, app_name: %s", logHost2, logPort2, config.AppName)
 
 	return client, nil
 }
@@ -466,8 +478,7 @@ func (c *Client) startHealthCheck() {
 		}
 	}()
 
-	emit.Info.StructuredFields("Health check started",
-		emit.ZDuration("interval", c.config.HealthCheckInterval))
+	c.config.Logger.Info("Health check started - interval: %v", c.config.HealthCheckInterval)
 }
 
 // performHealthCheck performs a health check
@@ -477,8 +488,7 @@ func (c *Client) performHealthCheck() {
 
 	err := c.Ping(ctx)
 	if err != nil {
-		emit.Warn.StructuredFields("Health check failed",
-			emit.ZString("error", err.Error()))
+		c.config.Logger.Warn("Health check failed - error: %s", err.Error())
 
 		if c.config.ReconnectEnabled {
 			c.attemptReconnect()
@@ -501,16 +511,12 @@ func (c *Client) attemptReconnect() {
 	for attempts < c.config.MaxReconnectAttempts {
 		attempts++
 
-		emit.Info.StructuredFields("Attempting to reconnect to Elasticsearch",
-			emit.ZInt("attempt", attempts),
-			emit.ZInt("max_attempts", c.config.MaxReconnectAttempts),
-			emit.ZDuration("delay", delay))
+		c.config.Logger.Info("Attempting to reconnect to Elasticsearch - attempt: %d, max_attempts: %d, delay: %v", attempts, c.config.MaxReconnectAttempts, delay)
 
 		time.Sleep(delay)
 
 		if err := c.connect(); err == nil {
-			emit.Info.StructuredFields("Successfully reconnected to Elasticsearch",
-				emit.ZInt("attempts", attempts))
+			c.config.Logger.Info("Successfully reconnected to Elasticsearch - attempts: %d", attempts)
 			c.reconnectCount++
 			return
 		}
@@ -522,8 +528,7 @@ func (c *Client) attemptReconnect() {
 		}
 	}
 
-	emit.Error.StructuredFields("Failed to reconnect to Elasticsearch after maximum attempts",
-		emit.ZInt("max_attempts", c.config.MaxReconnectAttempts))
+	c.config.Logger.Error("Failed to reconnect to Elasticsearch after maximum attempts - max_attempts: %d", c.config.MaxReconnectAttempts)
 }
 
 // Close closes the client and stops background routines
@@ -535,7 +540,7 @@ func (c *Client) Close() error {
 			c.healthTicker.Stop()
 		}
 
-		emit.Info.Msg("Elasticsearch client closed")
+		c.config.Logger.Info("Elasticsearch client closed")
 	})
 
 	return nil

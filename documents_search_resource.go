@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -78,24 +77,18 @@ func (sr *SearchResource) Search(ctx context.Context, query map[string]any, opti
 
 	res, err := req.Do(ctx, sr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Search failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("error", err.Error()))
+		sr.client.config.Logger.Error("Search failed - indices: %s, error: %s", strings.Join(indices, ","), err.Error())
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			sr.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Search failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		sr.client.config.Logger.Error("Search failed - indices: %s, status: %s, response: %s", strings.Join(indices, ","), res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("search failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -104,11 +97,7 @@ func (sr *SearchResource) Search(ctx context.Context, query map[string]any, opti
 		return nil, fmt.Errorf("failed to decode search response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Search completed successfully",
-		emit.ZString("indices", strings.Join(indices, ",")),
-		emit.ZInt("hits", len(searchResponse.Hits.Hits)),
-		emit.ZInt("total", int(searchResponse.Hits.Total.Value)),
-		emit.ZInt("took", searchResponse.Took))
+	sr.client.config.Logger.Debug("Search completed successfully - indices: %s, hits: %d, total: %d, took: %d", strings.Join(indices, ","), len(searchResponse.Hits.Hits), int(searchResponse.Hits.Total.Value), searchResponse.Took)
 
 	return &searchResponse, nil
 }
@@ -145,24 +134,18 @@ func (sr *SearchResource) Count(ctx context.Context, query map[string]any, optio
 
 	res, err := req.Do(ctx, sr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Count failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("error", err.Error()))
+		sr.client.config.Logger.Error("Count failed - indices: %s, error: %s", strings.Join(indices, ","), err.Error())
 		return 0, fmt.Errorf("count request failed: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			sr.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Count failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		sr.client.config.Logger.Error("Count failed - indices: %s, status: %s, response: %s", strings.Join(indices, ","), res.Status(), string(bodyBytes))
 		return 0, fmt.Errorf("count failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -174,9 +157,7 @@ func (sr *SearchResource) Count(ctx context.Context, query map[string]any, optio
 		return 0, fmt.Errorf("failed to decode count response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Count completed successfully",
-		emit.ZString("indices", strings.Join(indices, ",")),
-		emit.ZInt("count", int(countResponse.Count)))
+	sr.client.config.Logger.Debug("Count completed successfully - indices: %s, count: %d", strings.Join(indices, ","), int(countResponse.Count))
 
 	return countResponse.Count, nil
 }
@@ -213,24 +194,18 @@ func (sr *SearchResource) startScrollSearch(ctx context.Context, query map[strin
 
 	res, err := req.Do(ctx, sr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Scroll search failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("error", err.Error()))
+		sr.client.config.Logger.Error("Scroll search failed - indices: %s, error: %s", strings.Join(indices, ","), err.Error())
 		return nil, fmt.Errorf("scroll search request failed: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			sr.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Scroll search failed",
-			emit.ZString("indices", strings.Join(indices, ",")),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		sr.client.config.Logger.Error("Scroll search failed - indices: %s, status: %s, response: %s", strings.Join(indices, ","), res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("scroll search failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -239,12 +214,7 @@ func (sr *SearchResource) startScrollSearch(ctx context.Context, query map[strin
 		return nil, fmt.Errorf("failed to decode scroll search response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Scroll search started successfully",
-		emit.ZString("indices", strings.Join(indices, ",")),
-		emit.ZString("scroll_id", searchResponse.ScrollID),
-		emit.ZInt("initial_hits", len(searchResponse.Hits.Hits)),
-		emit.ZInt("total", int(searchResponse.Hits.Total.Value)),
-		emit.ZInt("took", searchResponse.Took))
+	sr.client.config.Logger.Debug("Scroll search started successfully - indices: %s, scroll_id: %s, initial_hits: %d, total: %d, took: %d", strings.Join(indices, ","), searchResponse.ScrollID, len(searchResponse.Hits.Hits), int(searchResponse.Hits.Total.Value), searchResponse.Took)
 
 	return &searchResponse, nil
 }

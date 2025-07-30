@@ -7,8 +7,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/cloudresty/emit"
 )
 
 // Shutdownable interface for resources that can be gracefully shutdown
@@ -32,10 +30,11 @@ type ShutdownManager struct {
 	cancel       context.CancelFunc
 	mutex        sync.Mutex
 	config       *ShutdownConfig
+	logger       Logger
 }
 
 // NewShutdownManager creates a new shutdown manager with default configuration
-func NewShutdownManager(config *ShutdownConfig) *ShutdownManager {
+func NewShutdownManager(config *ShutdownConfig, logger Logger) *ShutdownManager {
 	if config == nil {
 		config = &ShutdownConfig{
 			Timeout:          30 * time.Second,
@@ -44,11 +43,13 @@ func NewShutdownManager(config *ShutdownConfig) *ShutdownManager {
 		}
 	}
 
+	if logger == nil {
+		logger = &NopLogger{}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	emit.Info.StructuredFields("Creating shutdown manager",
-		emit.ZDuration("timeout", config.Timeout),
-		emit.ZDuration("grace_period", config.GracePeriod))
+	logger.Info("Creating shutdown manager - timeout: %v, grace_period: %v", config.Timeout, config.GracePeriod)
 
 	return &ShutdownManager{
 		clients:      make([]*Client, 0),
@@ -57,6 +58,7 @@ func NewShutdownManager(config *ShutdownConfig) *ShutdownManager {
 		ctx:          ctx,
 		cancel:       cancel,
 		config:       config,
+		logger:       logger,
 	}
 }
 
@@ -68,10 +70,9 @@ func NewShutdownManagerWithConfig(config *Config) *ShutdownManager {
 		ForceKillTimeout: 10 * time.Second,
 	}
 
-	emit.Info.StructuredFields("Creating shutdown manager with config",
-		emit.ZDuration("timeout", shutdownConfig.Timeout))
+	config.Logger.Info("Creating shutdown manager with config - timeout: %v", shutdownConfig.Timeout)
 
-	return NewShutdownManager(shutdownConfig)
+	return NewShutdownManager(shutdownConfig, config.Logger)
 }
 
 // Register registers Elasticsearch clients for graceful shutdown
@@ -81,21 +82,20 @@ func (sm *ShutdownManager) Register(clients ...*Client) {
 
 	sm.clients = append(sm.clients, clients...)
 
-	emit.Info.StructuredFields("Registered clients for graceful shutdown",
-		emit.ZInt("count", len(clients)))
+	sm.logger.Info("Registered clients for graceful shutdown - count: %d", len(clients))
 }
 
 // SetupSignalHandler sets up signal handlers for graceful shutdown
 func (sm *ShutdownManager) SetupSignalHandler() {
 	signal.Notify(sm.shutdownChan, syscall.SIGINT, syscall.SIGTERM)
-	emit.Info.Msg("Signal handlers setup for graceful shutdown")
+
+	sm.logger.Info("Signal handlers setup for graceful shutdown")
 }
 
 // Wait blocks until a shutdown signal is received and performs graceful shutdown
 func (sm *ShutdownManager) Wait() {
 	sig := <-sm.shutdownChan
-	emit.Info.StructuredFields("Received shutdown signal",
-		emit.ZString("signal", sig.String()))
+	sm.logger.Info("Received shutdown signal - signal: %s", sig.String())
 
 	sm.shutdown()
 }
@@ -112,16 +112,14 @@ func (sm *ShutdownManager) RegisterResources(resources ...Shutdownable) {
 
 	sm.resources = append(sm.resources, resources...)
 
-	emit.Info.StructuredFields("Registered resources for graceful shutdown",
-		emit.ZInt("count", len(resources)))
+	sm.logger.Info("Registered resources for graceful shutdown - count: %d", len(resources))
 }
 
 // shutdown performs the actual shutdown logic
 func (sm *ShutdownManager) shutdown() {
 	start := time.Now()
 
-	emit.Info.StructuredFields("Starting graceful shutdown",
-		emit.ZDuration("timeout", sm.config.Timeout))
+	sm.logger.Info("Starting graceful shutdown - timeout: %v", sm.config.Timeout)
 
 	// Cancel context to signal background workers to stop
 	sm.cancel()
@@ -146,16 +144,12 @@ func (sm *ShutdownManager) shutdown() {
 		// Close Elasticsearch clients
 		for i, client := range clients {
 			if client != nil {
-				emit.Info.StructuredFields("Closing Elasticsearch client",
-					emit.ZInt("client_index", i))
+				sm.logger.Info("Closing Elasticsearch client - client_index: %d", i)
 
 				if err := client.Close(); err != nil {
-					emit.Error.StructuredFields("Error closing Elasticsearch client",
-						emit.ZInt("client_index", i),
-						emit.ZString("error", err.Error()))
+					sm.logger.Error("Error closing Elasticsearch client - client_index: %d, error: %s", i, err.Error())
 				} else {
-					emit.Info.StructuredFields("Elasticsearch client closed successfully",
-						emit.ZInt("client_index", i))
+					sm.logger.Info("Elasticsearch client closed successfully - client_index: %d", i)
 				}
 			}
 		}
@@ -163,30 +157,25 @@ func (sm *ShutdownManager) shutdown() {
 		// Close other resources
 		for i, resource := range resources {
 			if resource != nil {
-				emit.Info.StructuredFields("Closing resource",
-					emit.ZInt("resource_index", i))
+				sm.logger.Info("Closing resource - resource_index: %d", i)
 
 				if err := resource.Close(); err != nil {
-					emit.Error.StructuredFields("Error closing resource",
-						emit.ZInt("resource_index", i),
-						emit.ZString("error", err.Error()))
+					sm.logger.Error("Error closing resource - resource_index: %d, error: %s", i, err.Error())
 				} else {
-					emit.Info.StructuredFields("Resource closed successfully",
-						emit.ZInt("resource_index", i))
+					sm.logger.Info("Resource closed successfully - resource_index: %d", i)
 				}
 			}
 		}
 
 		// Wait for grace period to allow in-flight operations to complete
 		if sm.config.GracePeriod > 0 {
-			emit.Info.StructuredFields("Waiting grace period for in-flight operations",
-				emit.ZDuration("grace_period", sm.config.GracePeriod))
+			sm.logger.Info("Waiting grace period for in-flight operations - grace_period: %v", sm.config.GracePeriod)
 
 			select {
 			case <-time.After(sm.config.GracePeriod):
-				emit.Info.Msg("Grace period completed")
+				sm.logger.Info("Grace period completed")
 			case <-shutdownCtx.Done():
-				emit.Warn.Msg("Grace period interrupted by timeout")
+				sm.logger.Warn("Grace period interrupted by timeout")
 			}
 		}
 	}()
@@ -195,23 +184,19 @@ func (sm *ShutdownManager) shutdown() {
 	select {
 	case <-done:
 		elapsed := time.Since(start)
-		emit.Info.StructuredFields("Graceful shutdown completed",
-			emit.ZDuration("elapsed", elapsed))
+		sm.logger.Info("Graceful shutdown completed - elapsed: %v", elapsed)
 	case <-shutdownCtx.Done():
 		elapsed := time.Since(start)
-		emit.Warn.StructuredFields("Graceful shutdown timed out",
-			emit.ZDuration("elapsed", elapsed),
-			emit.ZDuration("timeout", sm.config.Timeout))
+		sm.logger.Warn("Graceful shutdown timed out - elapsed: %v, timeout: %v", elapsed, sm.config.Timeout)
 
 		// Force close after timeout
 		if sm.config.ForceKillTimeout > 0 {
-			emit.Warn.StructuredFields("Waiting before force kill",
-				emit.ZDuration("force_kill_timeout", sm.config.ForceKillTimeout))
+			sm.logger.Warn("Waiting before force kill - force_kill_timeout: %v", sm.config.ForceKillTimeout)
 
 			time.Sleep(sm.config.ForceKillTimeout)
 		}
 
-		emit.Error.Msg("Force killing application")
+		sm.logger.Error("Force killing application")
 		os.Exit(1)
 	}
 }
@@ -222,8 +207,7 @@ func (sm *ShutdownManager) SetTimeout(timeout time.Duration) {
 	defer sm.mutex.Unlock()
 	sm.config.Timeout = timeout
 
-	emit.Info.StructuredFields("Shutdown timeout updated",
-		emit.ZDuration("timeout", timeout))
+	sm.logger.Info("Shutdown timeout updated - timeout: %v", timeout)
 }
 
 // GetTimeout returns the current shutdown timeout

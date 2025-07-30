@@ -125,44 +125,12 @@ func validateConfig(config *Config) error {
 		config.HealthCheckInterval = 30 * time.Second
 	}
 
-	// Validate log level
-	if !isValidLogLevel(config.LogLevel) {
-		return fmt.Errorf("invalid log level: %s", config.LogLevel)
-	}
-
-	// Validate log format
-	if !isValidLogFormat(config.LogFormat) {
-		return fmt.Errorf("invalid log format: %s", config.LogFormat)
-	}
-
 	// Validate ID mode
 	if !isValidIDMode(string(config.IDMode)) {
 		return fmt.Errorf("invalid ID mode: %s", config.IDMode)
 	}
 
 	return nil
-}
-
-// isValidLogLevel checks if the log level is valid
-func isValidLogLevel(level string) bool {
-	validLevels := []string{"debug", "info", "warn", "error"}
-	for _, valid := range validLevels {
-		if level == valid {
-			return true
-		}
-	}
-	return false
-}
-
-// isValidLogFormat checks if the log format is valid
-func isValidLogFormat(format string) bool {
-	validFormats := []string{"json", "text"}
-	for _, valid := range validFormats {
-		if format == valid {
-			return true
-		}
-	}
-	return false
 }
 
 // isValidIDMode checks if the ID mode is valid
@@ -209,6 +177,4 @@ const (
 	EnvElasticsearchAppName              = "ELASTICSEARCH_APP_NAME"
 	EnvElasticsearchConnectionName       = "ELASTICSEARCH_CONNECTION_NAME"
 	EnvElasticsearchIDMode               = "ELASTICSEARCH_ID_MODE"
-	EnvElasticsearchLogLevel             = "ELASTICSEARCH_LOG_LEVEL"
-	EnvElasticsearchLogFormat            = "ELASTICSEARCH_LOG_FORMAT"
 )

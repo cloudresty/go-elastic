@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -29,22 +28,18 @@ func (cr *ClusterResource) Health(ctx context.Context) (*ClusterHealth, error) {
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to get cluster health",
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to get cluster health - error: %s", err.Error())
 		return nil, fmt.Errorf("failed to get cluster health: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to get cluster health",
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to get cluster health - status: %s, response: %s", res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("cluster health request failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -53,10 +48,7 @@ func (cr *ClusterResource) Health(ctx context.Context) (*ClusterHealth, error) {
 		return nil, fmt.Errorf("failed to decode cluster health response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Cluster health retrieved successfully",
-		emit.ZString("status", health.Status),
-		emit.ZInt("active_primary_shards", health.ActivePrimaryShards),
-		emit.ZInt("active_shards", health.ActiveShards))
+	cr.client.config.Logger.Debug("Cluster health retrieved successfully - status: %s, active_primary_shards: %d, active_shards: %d", health.Status, health.ActivePrimaryShards, health.ActiveShards)
 
 	return &health, nil
 }
@@ -73,22 +65,18 @@ func (cr *ClusterResource) Stats(ctx context.Context) (*ClusterStats, error) {
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to get cluster stats",
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to get cluster stats - error: %s", err.Error())
 		return nil, fmt.Errorf("failed to get cluster stats: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to get cluster stats",
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to get cluster stats - status: %s, response: %s", res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("cluster stats request failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -97,9 +85,7 @@ func (cr *ClusterResource) Stats(ctx context.Context) (*ClusterStats, error) {
 		return nil, fmt.Errorf("failed to decode cluster stats response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Cluster stats retrieved successfully",
-		emit.ZString("cluster_name", stats.ClusterName),
-		emit.ZString("status", stats.Status))
+	cr.client.config.Logger.Debug("Cluster stats retrieved successfully - cluster_name: %s, status: %s", stats.ClusterName, stats.Status)
 
 	return &stats, nil
 }
@@ -124,29 +110,33 @@ func (cr *ClusterResource) CreateTemplate(ctx context.Context, name string, temp
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to create index template",
-			emit.ZString("template", name),
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to create index template", map[string]interface{}{
+			"template": name,
+			"error":    err.Error(),
+		})
 		return fmt.Errorf("failed to create index template: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to create index template",
-			emit.ZString("template", name),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to create index template", map[string]interface{}{
+			"template": name,
+			"status":   res.Status(),
+			"response": string(bodyBytes),
+		})
 		return fmt.Errorf("failed to create template '%s': %s - %s", name, res.Status(), string(bodyBytes))
 	}
 
-	emit.Info.StructuredFields("Index template created successfully",
-		emit.ZString("template", name))
+	cr.client.config.Logger.Info("Index template created successfully", map[string]interface{}{
+		"template": name,
+	})
 
 	return nil
 }
@@ -169,8 +159,9 @@ func (cr *ClusterResource) GetTemplate(ctx context.Context, name string) (map[st
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
@@ -201,29 +192,33 @@ func (cr *ClusterResource) DeleteTemplate(ctx context.Context, name string) erro
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to delete index template",
-			emit.ZString("template", name),
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to delete index template", map[string]interface{}{
+			"template": name,
+			"error":    err.Error(),
+		})
 		return fmt.Errorf("failed to delete index template: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to delete index template",
-			emit.ZString("template", name),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to delete index template", map[string]interface{}{
+			"template": name,
+			"status":   res.Status(),
+			"response": string(bodyBytes),
+		})
 		return fmt.Errorf("failed to delete template '%s': %s - %s", name, res.Status(), string(bodyBytes))
 	}
 
-	emit.Info.StructuredFields("Index template deleted successfully",
-		emit.ZString("template", name))
+	cr.client.config.Logger.Info("Index template deleted successfully", map[string]interface{}{
+		"template": name,
+	})
 
 	return nil
 }
@@ -244,8 +239,9 @@ func (cr *ClusterResource) ListTemplates(ctx context.Context) (map[string]any, e
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
@@ -276,22 +272,25 @@ func (cr *ClusterResource) Settings(ctx context.Context) (map[string]any, error)
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to get cluster settings",
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to get cluster settings", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return nil, fmt.Errorf("failed to get cluster settings: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to get cluster settings",
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to get cluster settings", map[string]interface{}{
+			"status":   res.Status(),
+			"response": string(bodyBytes),
+		})
 		return nil, fmt.Errorf("cluster settings request failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -300,7 +299,7 @@ func (cr *ClusterResource) Settings(ctx context.Context) (map[string]any, error)
 		return nil, fmt.Errorf("failed to decode cluster settings response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Cluster settings retrieved successfully")
+	cr.client.config.Logger.Debug("Cluster settings retrieved successfully", nil)
 
 	return result, nil
 }
@@ -325,22 +324,25 @@ func (cr *ClusterResource) AllocationExplain(ctx context.Context, body map[strin
 
 	res, err := req.Do(ctx, cr.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to get allocation explanation",
-			emit.ZString("error", err.Error()))
+		cr.client.config.Logger.Error("Failed to get allocation explanation", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return nil, fmt.Errorf("failed to get allocation explanation: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			cr.client.config.Logger.Warn("Failed to close response body", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to get allocation explanation",
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		cr.client.config.Logger.Error("Failed to get allocation explanation", map[string]interface{}{
+			"status":   res.Status(),
+			"response": string(bodyBytes),
+		})
 		return nil, fmt.Errorf("allocation explain request failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -349,7 +351,7 @@ func (cr *ClusterResource) AllocationExplain(ctx context.Context, body map[strin
 		return nil, fmt.Errorf("failed to decode allocation explain response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Allocation explanation retrieved successfully")
+	cr.client.config.Logger.Debug("Allocation explanation retrieved successfully", nil)
 
 	return result, nil
 }

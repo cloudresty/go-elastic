@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -53,8 +52,7 @@ func (ss *SearchScroll) Start(ctx context.Context, query map[string]any, scrollT
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ss.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
@@ -86,24 +84,18 @@ func (ss *SearchScroll) Continue(ctx context.Context, scrollID string, scrollTim
 
 	res, err := req.Do(ctx, ss.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Scroll continue failed",
-			emit.ZString("scroll_id", scrollID),
-			emit.ZString("error", err.Error()))
+		ss.client.config.Logger.Error("Scroll continue failed - scroll_id: %s, error: %s", scrollID, err.Error())
 		return nil, fmt.Errorf("scroll continue request failed: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ss.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Scroll continue failed",
-			emit.ZString("scroll_id", scrollID),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		ss.client.config.Logger.Error("Scroll continue failed - scroll_id: %s, status: %s, response: %s", scrollID, res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("scroll continue failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -112,10 +104,7 @@ func (ss *SearchScroll) Continue(ctx context.Context, scrollID string, scrollTim
 		return nil, fmt.Errorf("failed to decode scroll continue response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Scroll continue completed successfully",
-		emit.ZString("scroll_id", scrollID),
-		emit.ZInt("hits", len(searchResponse.Hits.Hits)),
-		emit.ZInt("took", searchResponse.Took))
+	ss.client.config.Logger.Debug("Scroll continue completed successfully - scroll_id: %s, hits: %d, took: %d", scrollID, len(searchResponse.Hits.Hits), searchResponse.Took)
 
 	return &searchResponse, nil
 }
@@ -138,20 +127,16 @@ func (ss *SearchScroll) Clear(ctx context.Context, scrollID string) error {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ss.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
-		emit.Warn.StructuredFields("Clear scroll failed",
-			emit.ZString("scroll_id", scrollID),
-			emit.ZString("status", res.Status()))
+		ss.client.config.Logger.Warn("Clear scroll failed - scroll_id: %s, status: %s", scrollID, res.Status())
 		return fmt.Errorf("clear scroll failed: %s", res.Status())
 	}
 
-	emit.Debug.StructuredFields("Scroll cleared successfully",
-		emit.ZString("scroll_id", scrollID))
+	ss.client.config.Logger.Debug("Scroll cleared successfully - scroll_id: %s", scrollID)
 
 	return nil
 }
@@ -174,8 +159,7 @@ func (ss *SearchScroll) ClearAll(ctx context.Context) error {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			ss.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 

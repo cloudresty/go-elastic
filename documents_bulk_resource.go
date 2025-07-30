@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -170,24 +169,18 @@ func (br *BulkResource) Execute(ctx context.Context, operations []*BulkOperation
 
 	res, err := req.Do(ctx, br.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Bulk operation failed",
-			emit.ZInt("operations", len(operations)),
-			emit.ZString("error", err.Error()))
+		br.client.config.Logger.Error("Bulk operation failed - operations: %d, error: %s", len(operations), err.Error())
 		return nil, fmt.Errorf("bulk request failed: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			br.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Bulk operation failed",
-			emit.ZInt("operations", len(operations)),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		br.client.config.Logger.Error("Bulk operation failed - operations: %d, status: %s, response: %s", len(operations), res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("bulk operation failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -196,10 +189,7 @@ func (br *BulkResource) Execute(ctx context.Context, operations []*BulkOperation
 		return nil, fmt.Errorf("failed to decode bulk response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Bulk operation completed successfully",
-		emit.ZInt("operations", len(operations)),
-		emit.ZInt("took", bulkResponse.Took),
-		emit.ZBool("errors", bulkResponse.Errors))
+	br.client.config.Logger.Info("Bulk operation completed successfully - operations: %d, took: %d, errors: %t", len(operations), bulkResponse.Took, bulkResponse.Errors)
 
 	return &bulkResponse, nil
 }
@@ -237,8 +227,7 @@ func (br *BulkResource) ExecuteRaw(ctx context.Context, operations []map[string]
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			br.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 

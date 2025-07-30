@@ -1,9 +1,5 @@
 name: CI
 
-# This CI workflow runs all tests with Elasticsearch.
-# The examples/ folder is excluded from all test runs.
-# Elasticsearch runs without authentication for testing.
-
 on:
   push:
     branches: [ main, develop ]
@@ -16,19 +12,19 @@ jobs:
 
     services:
       elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+        image: elasticsearch:8.15.3
         env:
           discovery.type: single-node
-          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
           xpack.security.enabled: false
-          xpack.security.enrollment.enabled: false
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
         ports:
           - 9200:9200
+          - 9300:9300
         options: >-
-          --health-cmd="curl -f http://localhost:9200/_cluster/health || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     strategy:
       matrix:
@@ -64,52 +60,18 @@ jobs:
     - name: Vet
       run: go vet $(go list ./... | grep -v '/examples/')
 
+    - name: Run unit tests
+      run: go test -v -race -short $(go list ./... | grep -v '/examples/')
+
     - name: Wait for Elasticsearch
       run: |
-        timeout 60 bash -c 'until curl -f http://localhost:9200/_cluster/health; do sleep 2; done'
-
-    - name: Verify Elasticsearch is ready
-      run: |
-        echo "Verifying Elasticsearch is accessible..."
-        curl -f http://localhost:9200/_cluster/health && echo "Elasticsearch is ready" || exit 1
-        echo "Elasticsearch cluster info:"
-        curl -s http://localhost:9200/ | jq .
-
-    - name: Run unit tests
-      env:
-        ELASTICSEARCH_HOSTS: localhost:9200
-        ELASTICSEARCH_TLS_ENABLED: false
-      run: go test -v -race -short $(go list ./... | grep -v '/examples/')
+        timeout 60 bash -c 'until curl -s http://localhost:9200/_cluster/health | grep -q "green\|yellow"; do sleep 1; done'
 
     - name: Run integration tests
       env:
         ELASTICSEARCH_HOSTS: localhost:9200
         ELASTICSEARCH_TLS_ENABLED: false
-        TEST_ELASTICSEARCH_HOSTS: localhost:9200
-      run: |
-        # Run integration tests if they exist
-        if [ -f "Makefile" ] && grep -q "test-integration" Makefile; then
-          make test-integration
-        else
-          echo "No integration tests found, skipping..."
-        fi
-
-    - name: Check test results
-      if: always()
-      run: |
-        # Check test results if make target exists
-        if [ -f "Makefile" ] && grep -q "test-status" Makefile; then
-          make test-status
-        else
-          echo "No test-status target found, skipping..."
-        fi
-
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results-go-${{ matrix.go-version }}
-        path: test-results/
+      run: go test -v -race $(go list ./... | grep -v '/examples/')
 
     - name: Run tests with coverage
       env:
@@ -122,6 +84,29 @@ jobs:
       with:
         file: ./coverage.out
 
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.24
+
+    - name: Test examples build
+      run: |
+        echo "Testing example builds..."
+        for example_dir in examples/*/; do
+          if [ -f "$example_dir/go.mod" ]; then
+            echo "Building example in $example_dir"
+            cd "$example_dir"
+            go mod download
+            go build .
+            cd - > /dev/null
+          fi
+        done
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -133,7 +118,7 @@ jobs:
         go-version: 1.24
 
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v8
       with:
         version: latest
-        args: --timeout=5m
+        args: --timeout=10m
