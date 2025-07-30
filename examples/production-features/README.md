@@ -13,6 +13,7 @@ This example demonstrates production-ready features of the go-elastic library us
 ## Setup
 
 1. Copy the environment configuration:
+
    ```bash
    cp .env.example .env
    ```
@@ -20,6 +21,7 @@ This example demonstrates production-ready features of the go-elastic library us
 2. Configure your Elasticsearch instances in `.env`
 
 3. Build and run:
+
    ```bash
    go build .
    ./production-features

@@ -9,7 +9,6 @@ replace github.com/cloudresty/go-elastic => ../../
 require github.com/cloudresty/go-elastic v0.0.0-00010101000000-000000000000
 
 require (
-	github.com/cloudresty/emit v1.2.4 // indirect
 	github.com/cloudresty/go-env v1.0.1 // indirect
 	github.com/cloudresty/ulid v1.2.1 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.7.0 // indirect
