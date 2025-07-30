@@ -9,7 +9,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -78,10 +77,7 @@ func (d *Document) IndexWithID(ctx context.Context, documentID string, document 
 		return nil, fmt.Errorf("failed to decode index response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Document indexed successfully",
-		emit.ZString("index", d.index),
-		emit.ZString("document_id", indexResponse.ID),
-		emit.ZString("result", indexResponse.Result))
+	d.client.config.Logger.Info("Document indexed successfully - index: %s, document_id: %s, result: %s", d.index, indexResponse.ID, indexResponse.Result)
 
 	return &indexResponse, nil
 }
@@ -131,9 +127,7 @@ func (d *Document) Get(ctx context.Context, documentID string) (map[string]any, 
 		return nil, fmt.Errorf("document not found")
 	}
 
-	emit.Debug.StructuredFields("Document retrieved successfully",
-		emit.ZString("index", d.index),
-		emit.ZString("document_id", documentID))
+	d.client.config.Logger.Debug("Document retrieved successfully - index: %s, document_id: %s", d.index, documentID)
 
 	return getResponse.Source, nil
 }
@@ -206,10 +200,7 @@ func (d *Document) GetMany(ctx context.Context, documentIDs []string) ([]map[str
 		}
 	}
 
-	emit.Debug.StructuredFields("Documents retrieved successfully",
-		emit.ZString("index", d.index),
-		emit.ZInt("requested", len(documentIDs)),
-		emit.ZInt("found", len(documents)))
+	d.client.config.Logger.Debug("Documents retrieved successfully - index: %s, requested: %d, found: %d", d.index, len(documentIDs), len(documents))
 
 	return documents, nil
 }
@@ -264,10 +255,7 @@ func (d *Document) Update(ctx context.Context, documentID string, doc map[string
 		return nil, fmt.Errorf("failed to decode update response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Document updated successfully",
-		emit.ZString("index", d.index),
-		emit.ZString("document_id", documentID),
-		emit.ZString("result", updateResponse.Result))
+	d.client.config.Logger.Info("Document updated successfully - index: %s, document_id: %s, result: %s", d.index, documentID, updateResponse.Result)
 
 	return &updateResponse, nil
 }
@@ -309,10 +297,7 @@ func (d *Document) Delete(ctx context.Context, documentID string) (*DeleteRespon
 		return nil, fmt.Errorf("failed to decode delete response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Document deleted successfully",
-		emit.ZString("index", d.index),
-		emit.ZString("document_id", documentID),
-		emit.ZString("result", deleteResponse.Result))
+	d.client.config.Logger.Info("Document deleted successfully - index: %s, document_id: %s, result: %s", d.index, documentID, deleteResponse.Result)
 
 	return &deleteResponse, nil
 }
@@ -332,16 +317,12 @@ func (d *Document) Exists(ctx context.Context, documentID string) (bool, error) 
 
 	res, err := req.Do(ctx, d.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to check document existence",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID),
-			emit.ZString("error", err.Error()))
+		d.client.config.Logger.Error("Failed to check document existence - index: %s, document_id: %s, error: %s", d.index, documentID, err.Error())
 		return false, fmt.Errorf("failed to check document existence: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			d.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
@@ -349,22 +330,14 @@ func (d *Document) Exists(ctx context.Context, documentID string) (bool, error) 
 	// Any other status code is an error
 	switch res.StatusCode {
 	case 200:
-		emit.Debug.StructuredFields("Document exists",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID))
+		d.client.config.Logger.Debug("Document exists - index: %s, document_id: %s", d.index, documentID)
 		return true, nil
 	case 404:
-		emit.Debug.StructuredFields("Document does not exist",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID))
+		d.client.config.Logger.Debug("Document does not exist - index: %s, document_id: %s", d.index, documentID)
 		return false, nil
 	default:
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Unexpected status when checking document existence",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		d.client.config.Logger.Error("Unexpected status when checking document existence - index: %s, document_id: %s, status: %s, response: %s", d.index, documentID, res.Status(), string(bodyBytes))
 		return false, fmt.Errorf("unexpected status when checking document existence: %s - %s", res.Status(), string(bodyBytes))
 	}
 }
@@ -395,26 +368,18 @@ func (d *Document) CreateWithID(ctx context.Context, documentID string, document
 
 	res, err := req.Do(ctx, d.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to create document",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID),
-			emit.ZString("error", err.Error()))
+		d.client.config.Logger.Error("Failed to create document - index: %s, document_id: %s, error: %s", d.index, documentID, err.Error())
 		return nil, fmt.Errorf("failed to create document: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			d.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to create document",
-			emit.ZString("index", d.index),
-			emit.ZString("document_id", documentID),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		d.client.config.Logger.Error("Failed to create document - index: %s, document_id: %s, status: %s, response: %s", d.index, documentID, res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("create document failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -423,10 +388,7 @@ func (d *Document) CreateWithID(ctx context.Context, documentID string, document
 		return nil, fmt.Errorf("failed to decode create response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Document created successfully",
-		emit.ZString("index", d.index),
-		emit.ZString("document_id", documentID),
-		emit.ZString("result", indexResponse.Result))
+	d.client.config.Logger.Info("Document created successfully - index: %s, document_id: %s, result: %s", d.index, documentID, indexResponse.Result)
 
 	return &indexResponse, nil
 }
@@ -459,24 +421,18 @@ func (d *Document) UpdateByQuery(ctx context.Context, query map[string]any, scri
 
 	res, err := req.Do(ctx, d.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to update by query",
-			emit.ZString("index", d.index),
-			emit.ZString("error", err.Error()))
+		d.client.config.Logger.Error("Failed to update by query - index: %s, error: %s", d.index, err.Error())
 		return nil, fmt.Errorf("failed to update by query: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			d.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Update by query failed",
-			emit.ZString("index", d.index),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		d.client.config.Logger.Error("Update by query failed - index: %s, status: %s, response: %s", d.index, res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("update by query failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -485,8 +441,7 @@ func (d *Document) UpdateByQuery(ctx context.Context, query map[string]any, scri
 		return nil, fmt.Errorf("failed to decode update by query response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Update by query completed",
-		emit.ZString("index", d.index))
+	d.client.config.Logger.Info("Update by query completed - index: %s", d.index)
 
 	return result, nil
 }
@@ -516,24 +471,18 @@ func (d *Document) DeleteByQuery(ctx context.Context, query map[string]any) (map
 
 	res, err := req.Do(ctx, d.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to delete by query",
-			emit.ZString("index", d.index),
-			emit.ZString("error", err.Error()))
+		d.client.config.Logger.Error("Failed to delete by query - index: %s, error: %s", d.index, err.Error())
 		return nil, fmt.Errorf("failed to delete by query: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			d.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Delete by query failed",
-			emit.ZString("index", d.index),
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		d.client.config.Logger.Error("Delete by query failed - index: %s, status: %s, response: %s", d.index, res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("delete by query failed: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -542,8 +491,7 @@ func (d *Document) DeleteByQuery(ctx context.Context, query map[string]any) (map
 		return nil, fmt.Errorf("failed to decode delete by query response: %w", err)
 	}
 
-	emit.Info.StructuredFields("Delete by query completed",
-		emit.ZString("index", d.index))
+	d.client.config.Logger.Info("Delete by query completed - index: %s", d.index)
 
 	return result, nil
 }

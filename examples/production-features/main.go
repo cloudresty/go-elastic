@@ -9,13 +9,52 @@ import (
 	elastic "github.com/cloudresty/go-elastic"
 )
 
+// EmitLogger wraps the emit library to implement the elastic.Logger interface
+type EmitLogger struct{}
+
+func (e *EmitLogger) Info(msg string, fields ...any) {
+	if len(fields) > 0 {
+		emit.Info.KeyValue(msg, fields...)
+	} else {
+		emit.Info.Msg(msg)
+	}
+}
+
+func (e *EmitLogger) Warn(msg string, fields ...any) {
+	if len(fields) > 0 {
+		emit.Warn.KeyValue(msg, fields...)
+	} else {
+		emit.Warn.Msg(msg)
+	}
+}
+
+func (e *EmitLogger) Error(msg string, fields ...any) {
+	if len(fields) > 0 {
+		emit.Error.KeyValue(msg, fields...)
+	} else {
+		emit.Error.Msg(msg)
+	}
+}
+
+func (e *EmitLogger) Debug(msg string, fields ...any) {
+	if len(fields) > 0 {
+		emit.Debug.KeyValue(msg, fields...)
+	} else {
+		emit.Debug.Msg(msg)
+	}
+}
+
 func main() {
 	emit.Info.Msg("=== Production Features Demo ===")
+
+	// Create an emit logger instance
+	logger := &EmitLogger{}
 
 	// Create clients with production configuration
 	paymentsClient, err := elastic.NewClient(
 		elastic.FromEnvWithPrefix("PAYMENTS_"),
 		elastic.WithConnectionName("payments-cluster"),
+		elastic.WithLogger(logger),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create payments client: %v", err)
@@ -24,6 +63,7 @@ func main() {
 	ordersClient, err := elastic.NewClient(
 		elastic.FromEnvWithPrefix("ORDERS_"),
 		elastic.WithConnectionName("orders-cluster"),
+		elastic.WithLogger(logger),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create orders client: %v", err)
@@ -34,7 +74,7 @@ func main() {
 		Timeout:          30 * time.Second,
 		GracePeriod:      5 * time.Second,
 		ForceKillTimeout: 10 * time.Second,
-	})
+	}, logger)
 
 	// Register clients for graceful shutdown
 	shutdownManager.Register(paymentsClient, ordersClient)

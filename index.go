@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -79,16 +78,11 @@ func (idx *Index) IndexMany(ctx context.Context, documents []map[string]any) (*B
 
 	response, err := bulkResource.ExecuteRaw(ctx, operations)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to index documents",
-			emit.ZString("error", err.Error()),
-			emit.ZString("index", idx.name),
-			emit.ZInt("count", len(documents)))
+		idx.client.config.Logger.Error("Failed to index documents - error: %s, index: %s, count: %d", err.Error(), idx.name, len(documents))
 		return nil, err
 	}
 
-	emit.Debug.StructuredFields("Documents indexed successfully",
-		emit.ZString("index", idx.name),
-		emit.ZInt("count", len(documents)))
+	idx.client.config.Logger.Debug("Documents indexed successfully - index: %s, count: %d", idx.name, len(documents))
 
 	return response, nil
 }
@@ -106,15 +100,11 @@ func (idx *Index) Search(ctx context.Context, query map[string]any, options ...S
 	}
 	response, err := searchResource.Search(ctx, query, append(options, WithIndices(idx.name))...)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to search documents",
-			emit.ZString("error", err.Error()),
-			emit.ZString("index", idx.name))
+		idx.client.config.Logger.Error("Failed to search documents - error: %s, index: %s", err.Error(), idx.name)
 		return nil, err
 	}
 
-	emit.Debug.StructuredFields("Search completed successfully",
-		emit.ZString("index", idx.name),
-		emit.ZInt("hits", response.Hits.Total.Value))
+	idx.client.config.Logger.Debug("Search completed successfully - index: %s, hits: %d", idx.name, response.Hits.Total.Value)
 
 	return response, nil
 }
@@ -146,15 +136,12 @@ func (idx *Index) Count(ctx context.Context, query map[string]any) (int64, error
 
 	response, err := req.Do(ctx, idx.client.GetClient())
 	if err != nil {
-		emit.Error.StructuredFields("Failed to count documents",
-			emit.ZString("error", err.Error()),
-			emit.ZString("index", idx.name))
+		idx.client.config.Logger.Error("Failed to count documents - error: %s, index: %s", err.Error(), idx.name)
 		return 0, fmt.Errorf("failed to count documents: %w", err)
 	}
 	defer func() {
 		if err := response.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			idx.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
@@ -170,9 +157,7 @@ func (idx *Index) Count(ctx context.Context, query map[string]any) (int64, error
 		return 0, fmt.Errorf("failed to decode count response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Documents counted successfully",
-		emit.ZString("index", idx.name),
-		emit.ZInt("count", int(countResponse.Count)))
+	idx.client.config.Logger.Debug("Documents counted successfully - index: %s, count: %d", idx.name, int(countResponse.Count))
 
 	return countResponse.Count, nil
 }

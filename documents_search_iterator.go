@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/cloudresty/emit"
 )
 
 // SearchIterator provides an iterator pattern for scrolling through large result sets
@@ -149,10 +147,7 @@ func (si *SearchIterator) fetchNextBatch(ctx context.Context) error {
 	// Update current hits
 	si.currentHits = response.Hits.Hits
 
-	emit.Debug.StructuredFields("Fetched next scroll batch",
-		emit.ZString("scroll_id", si.scrollID),
-		emit.ZInt("batch_size", len(si.currentHits)),
-		emit.ZInt64("processed_total", si.processedHits))
+	si.client.config.Logger.Debug("Fetched next scroll batch - scroll_id: %s, batch_size: %d, processed_total: %d", si.scrollID, len(si.currentHits), si.processedHits)
 
 	return nil
 }
@@ -168,9 +163,7 @@ func (si *SearchIterator) clearScroll(ctx context.Context) error {
 	}
 
 	if err := searchScroll.Clear(ctx, si.scrollID); err != nil {
-		emit.Warn.StructuredFields("Failed to clear scroll context",
-			emit.ZString("scroll_id", si.scrollID),
-			emit.ZString("error", err.Error()))
+		si.client.config.Logger.Warn("Failed to clear scroll context - scroll_id: %s, error: %s", si.scrollID, err.Error())
 		return err
 	}
 

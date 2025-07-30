@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -64,22 +63,18 @@ func (s *IndicesService) List(ctx context.Context) ([]IndexInfo, error) {
 
 	res, err := req.Do(ctx, s.client.client)
 	if err != nil {
-		emit.Error.StructuredFields("Failed to list indices",
-			emit.ZString("error", err.Error()))
+		s.client.config.Logger.Error("Failed to list indices - error: %s", err.Error())
 		return nil, fmt.Errorf("failed to list indices: %w", err)
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s", err.Error())
 		}
 	}()
 
 	if res.IsError() {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		emit.Error.StructuredFields("Failed to list indices",
-			emit.ZString("status", res.Status()),
-			emit.ZString("response", string(bodyBytes)))
+		s.client.config.Logger.Error("Failed to list indices - status: %s, response: %s", res.Status(), string(bodyBytes))
 		return nil, fmt.Errorf("failed to list indices: %s - %s", res.Status(), string(bodyBytes))
 	}
 
@@ -88,8 +83,7 @@ func (s *IndicesService) List(ctx context.Context) ([]IndexInfo, error) {
 		return nil, fmt.Errorf("failed to decode indices response: %w", err)
 	}
 
-	emit.Debug.StructuredFields("Indices listed successfully",
-		emit.ZInt("count", len(indices)))
+	s.client.config.Logger.Debug("Indices listed successfully - count: %d", len(indices))
 
 	return indices, nil
 }
@@ -112,8 +106,8 @@ func (s *IndicesService) Close(ctx context.Context, indexName string) error {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -143,8 +137,8 @@ func (s *IndicesService) Open(ctx context.Context, indexName string) error {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -174,8 +168,8 @@ func (s *IndicesService) Refresh(ctx context.Context, indexNames ...string) erro
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -205,8 +199,8 @@ func (s *IndicesService) Stats(ctx context.Context, indexNames ...string) (map[s
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -242,8 +236,8 @@ func (s *IndicesService) Clone(ctx context.Context, sourceIndex, targetIndex str
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -301,8 +295,8 @@ func (s *IndicesService) Reindex(ctx context.Context, sourceIndex, targetIndex s
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -330,8 +324,8 @@ func (s *IndicesService) Aliases(ctx context.Context) (map[string]any, error) {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -390,8 +384,8 @@ func (s *IndicesService) Alias(ctx context.Context, aliasName string, indexNames
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -445,8 +439,8 @@ func (s *IndicesService) RemoveAlias(ctx context.Context, aliasName string, inde
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -487,8 +481,8 @@ func (s *IndicesService) Analyze(ctx context.Context, indexName, text, analyzer 
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -536,8 +530,8 @@ func (s *IndicesService) Shrink(ctx context.Context, sourceIndex, targetIndex st
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -567,8 +561,8 @@ func (s *IndicesService) Flush(ctx context.Context, indexNames ...string) error 
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -617,8 +611,8 @@ func (s *IndicesService) Rollover(ctx context.Context, aliasName string, options
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			s.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 

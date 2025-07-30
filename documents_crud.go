@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"context"
-
-	"github.com/cloudresty/emit"
 )
 
 // DocumentsService CRUD methods
@@ -123,13 +121,11 @@ func (c *Client) enhanceDocument(doc any) map[string]any {
 		// Try to convert via JSON
 		jsonBytes, err := json.Marshal(doc)
 		if err != nil {
-			emit.Error.StructuredFields("Failed to marshal document",
-				emit.ZString("error", err.Error()))
+			c.config.Logger.Error("Failed to marshal document - error: %s", err.Error())
 			return map[string]any{}
 		}
 		if err := json.Unmarshal(jsonBytes, &docMap); err != nil {
-			emit.Error.StructuredFields("Failed to unmarshal document",
-				emit.ZString("error", err.Error()))
+			c.config.Logger.Error("Failed to unmarshal document - error: %s", err.Error())
 			return map[string]any{}
 		}
 	}

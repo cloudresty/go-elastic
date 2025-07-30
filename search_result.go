@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/cloudresty/emit"
 )
 
 // SearchResult represents a rich, typed search result with generic document support
@@ -305,9 +303,7 @@ func (tsi *TypedSearchIterator[T]) Close(ctx context.Context) error {
 	}
 
 	if err := searchScroll.Clear(ctx, tsi.scrollID); err != nil {
-		emit.Warn.StructuredFields("Failed to clear scroll context",
-			emit.ZString("scroll_id", tsi.scrollID),
-			emit.ZString("error", err.Error()))
+		tsi.client.config.Logger.Warn("Failed to clear scroll context - scroll_id: %s, error: %s", tsi.scrollID, err.Error())
 		return err
 	}
 
@@ -346,10 +342,7 @@ func (tsi *TypedSearchIterator[T]) fetchNextBatch(ctx context.Context) error {
 	tsi.currentHits = typedResult.Hits.Hits
 	tsi.currentIndex = -1 // Will be incremented to 0 by Next()
 
-	emit.Debug.StructuredFields("Fetched next typed scroll batch",
-		emit.ZString("scroll_id", tsi.scrollID),
-		emit.ZInt("batch_size", len(tsi.currentHits)),
-		emit.ZInt64("processed_total", tsi.processedHits))
+	tsi.client.config.Logger.Debug("Fetched next typed scroll batch - scroll_id: %s, batch_size: %d, processed_total: %d", tsi.scrollID, len(tsi.currentHits), tsi.processedHits)
 
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudresty/emit"
 	"github.com/elastic/go-elasticsearch/v9/esapi"
 )
 
@@ -36,8 +35,8 @@ func (im *IndexMapping) Get(ctx context.Context) (map[string]any, error) {
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			im.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
@@ -89,8 +88,8 @@ func (im *IndexMapping) Update(ctx context.Context, mapping map[string]any) erro
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			emit.Warn.StructuredFields("Failed to close response body",
-				emit.ZString("error", err.Error()))
+			im.client.config.Logger.Warn("Failed to close response body - error: %s",
+				err.Error())
 		}
 	}()
 
