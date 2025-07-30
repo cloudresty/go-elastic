@@ -237,7 +237,7 @@ jobs:
           git add go.mod go.sum
 
           # Build commit message with optional reason
-          COMMIT_MSG="chore: update go-rabbitmq dependencies"
+          COMMIT_MSG="chore: update go-elastic dependencies"
           if [ -n "${{ github.event.inputs.reason }}" ]; then
             COMMIT_MSG="$COMMIT_MSG
 

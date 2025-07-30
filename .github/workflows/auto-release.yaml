@@ -340,13 +340,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_VERSION="${{ needs.determine-version.outputs.new_version }}"
-          CHANGELOG="${{ steps.changelog.outputs.changelog }}"
+
+          # Use a here-document to safely handle the changelog content with special characters
+          cat > changelog.txt << 'EOF'
+          ${{ steps.changelog.outputs.changelog }}
+          EOF
 
           echo "Creating GitHub release $NEW_VERSION..."
 
           gh release create "$NEW_VERSION" \
             --title "Release $NEW_VERSION" \
-            --notes "$CHANGELOG" \
+            --notes-file changelog.txt \
             --latest
 
           echo "Release $NEW_VERSION created successfully"
