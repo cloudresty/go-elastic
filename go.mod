@@ -8,7 +8,7 @@ require (
 	github.com/cloudresty/emit v1.2.5
 	github.com/cloudresty/go-env v1.0.1
 	github.com/cloudresty/ulid v1.2.1
-	github.com/elastic/go-elasticsearch/v9 v9.1.0
+	github.com/elastic/go-elasticsearch/v9 v9.2.0
 )
 
 require (
