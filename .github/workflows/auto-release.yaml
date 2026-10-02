@@ -11,7 +11,10 @@ on:
   workflow_dispatch:
     inputs:
       release_type:
-        description: 'Type of release (patch, minor, major)'
+        # 'auto' derives the bump from commit messages exactly as a push to
+        # main does. Auto Merge to Main dispatches with it, because its
+        # GITHUB_TOKEN merge cannot fire the push trigger above.
+        description: 'Type of release (patch, minor, major, or auto from commit messages)'
         required: true
         default: 'patch'
         type: choice
@@ -19,6 +22,14 @@ on:
           - patch
           - minor
           - major
+          - auto
+
+# GITHUB_TOKEN only, no PAT fallback.
+#   contents: write  push the release tag and create the GitHub release
+#   actions: read    find the CI run for the released commit
+permissions:
+  contents: write
+  actions: read
 
 env:
   GO_VERSION: '1.24'
@@ -38,7 +49,7 @@ jobs:
       - name: Wait for CI workflow
         id: wait
         env:
-          GH_TOKEN: ${{ secrets.CLOUDRESTY_GITBOT_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Waiting for CI workflow to complete..."
 
@@ -182,7 +193,7 @@ jobs:
           # Determine release type
           RELEASE_TYPE="patch"
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.release_type }}" != "auto" ]; then
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
           else
             # Auto-determine based on commit messages since last tag
@@ -303,16 +314,16 @@ jobs:
           CHANGELOG="${CHANGELOG}### Testing\n"
           CHANGELOG="${CHANGELOG}- All unit tests pass\n"
           CHANGELOG="${CHANGELOG}- Race condition detection passes\n"
-          CHANGELOG="${CHANGELOG}- Integration tests with RabbitMQ streams pass\n"
+          CHANGELOG="${CHANGELOG}- Integration tests with Elasticsearch pass\n"
           CHANGELOG="${CHANGELOG}- Linting and code quality checks pass\n\n"
 
           CHANGELOG="${CHANGELOG}---\n\n"
 
           # Add full changelog link only if we have a previous tag to compare with
           if [ -n "$LATEST_TAG" ] && git rev-parse --verify "$LATEST_TAG" >/dev/null 2>&1; then
-            CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/cloudresty/go-rabbitmq/compare/${LATEST_TAG}...${NEW_VERSION}"
+            CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/cloudresty/go-elastic/compare/${LATEST_TAG}...${NEW_VERSION}"
           else
-            CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/cloudresty/go-rabbitmq/commits/${NEW_VERSION}"
+            CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/cloudresty/go-elastic/commits/${NEW_VERSION}"
           fi
 
           # Save changelog to file and output
@@ -383,13 +394,13 @@ jobs:
 
           curl -X POST -H 'Content-type: application/json' \
             --data "{
-              \"text\": \"${EMOJI} go-rabbitmq Release ${NEW_VERSION}\",
+              \"text\": \"${EMOJI} go-elastic Release ${NEW_VERSION}\",
               \"blocks\": [
                 {
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*New go-rabbitmq Release: ${NEW_VERSION}*\n\n• **Type**: ${RELEASE_TYPE} release\n• **Repository**: cloudresty/go-rabbitmq\n• **Status**: ✅ All tests passed\n\n<https://github.com/cloudresty/go-rabbitmq/releases/tag/${NEW_VERSION}|View Release Notes>\"
+                    \"text\": \"*New go-elastic Release: ${NEW_VERSION}*\n\n• **Type**: ${RELEASE_TYPE} release\n• **Repository**: cloudresty/go-elastic\n• **Status**: ✅ All tests passed\n\n<https://github.com/cloudresty/go-elastic/releases/tag/${NEW_VERSION}|View Release Notes>\"
                   }
                 }
               ]
