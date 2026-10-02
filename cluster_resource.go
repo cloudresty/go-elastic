@@ -187,7 +187,7 @@ func (cr *ClusterResource) DeleteTemplate(ctx context.Context, name string) erro
 	}
 
 	req := esapi.IndicesDeleteIndexTemplateRequest{
-		Name: name,
+		Name: []string{name},
 	}
 
 	res, err := req.Do(ctx, cr.client.client)
