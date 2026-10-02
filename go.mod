@@ -1,8 +1,6 @@
 module github.com/cloudresty/go-elastic
 
-go 1.24.1
-
-toolchain go1.24.4
+go 1.27.1
 
 require (
 	github.com/cloudresty/emit v1.2.6
