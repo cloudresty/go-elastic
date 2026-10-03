@@ -10,7 +10,7 @@ This guide will help you get up and running with the go-elastic package quickly 
 
 ## Prerequisites
 
-- Go 1.21 or later
+- Go 1.26 or later
 - Elasticsearch 8.x running locally or remotely
 - Basic understanding of Go and Elasticsearch concepts
 
