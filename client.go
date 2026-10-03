@@ -395,7 +395,10 @@ func (c *Client) connect() error {
 
 	esConfig := c.buildClientConfig()
 
-	client, err := elasticsearch.NewClient(esConfig)
+	// elasticsearch.NewClient and Config are deprecated in go-elasticsearch v9.5
+	// in favour of New with Option values, but "remain fully functional for
+	// backwards compatibility". Migrating is a separate change.
+	client, err := elasticsearch.NewClient(esConfig) //nolint:staticcheck // SA1019, see above
 	if err != nil {
 		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
@@ -426,8 +429,10 @@ func (c *Client) connect() error {
 }
 
 // buildClientConfig constructs Elasticsearch client configuration
+//
+//nolint:staticcheck // SA1019: elasticsearch.Config is deprecated but fully supported; see connect.
 func (c *Client) buildClientConfig() elasticsearch.Config {
-	config := elasticsearch.Config{
+	config := elasticsearch.Config{ //nolint:staticcheck // SA1019
 		Addresses: c.config.BuildConnectionAddresses(),
 		Username:  c.config.Username,
 		Password:  c.config.Password,

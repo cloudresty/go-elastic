@@ -365,7 +365,7 @@ If you discover a security vulnerability, please report it via email to [securit
 
 ## Requirements
 
-- Go 1.24+ (recommended)
+- Go 1.26+
 - Elasticsearch 8.0+ (recommended)
 
 🔝 [back to top](#go-elastic)
